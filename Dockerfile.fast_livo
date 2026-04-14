@@ -1,0 +1,127 @@
+ARG BASE_IMAGE=osrf/ros:humble-desktop
+FROM ${BASE_IMAGE}
+
+SHELL ["/bin/bash", "-c"]
+
+ARG UBUNTU_APT_MIRROR=""
+ARG ROS_APT_MIRROR=""
+
+RUN if [ -n "${UBUNTU_APT_MIRROR}" ]; then \
+            sed -i "s|http://archive.ubuntu.com/ubuntu/|${UBUNTU_APT_MIRROR}|g; s|http://security.ubuntu.com/ubuntu/|${UBUNTU_APT_MIRROR}|g" /etc/apt/sources.list; \
+        fi \
+ && if [ -n "${ROS_APT_MIRROR}" ] && [ -f /etc/apt/sources.list.d/ros2.list ]; then \
+            sed -i "s|http://packages.ros.org/ros2/ubuntu|${ROS_APT_MIRROR}|g" /etc/apt/sources.list.d/ros2.list; \
+        fi
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=humble \
+    ROS_DOMAIN_ID=0 \
+    ROS_LOCALHOST_ONLY=0 \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+    QT_X11_NO_MITSHM=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    pkg-config \
+    curl \
+    ca-certificates \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-rosdep \
+    python3-colcon-common-extensions \
+    python3-vcstool \
+    libeigen3-dev \
+    libpcl-dev \
+    libopencv-dev \
+    libboost-thread-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libfmt-dev \
+    libapr1-dev \
+    libusb-1.0-0-dev \
+    libssl-dev \
+    ros-humble-ament-cmake \
+    ros-humble-ament-cmake-auto \
+    ros-humble-common-interfaces \
+    ros-humble-cv-bridge \
+    ros-humble-demo-nodes-cpp \
+    ros-humble-geometry-msgs \
+    ros-humble-image-transport \
+    ros-humble-message-filters \
+    ros-humble-nav-msgs \
+    ros-humble-pcl-conversions \
+    ros-humble-pcl-ros \
+    ros-humble-rclcpp \
+    ros-humble-rclcpp-components \
+    ros-humble-rclpy \
+    ros-humble-realsense2-camera \
+    ros-humble-rosbag2 \
+    ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-sensor-msgs \
+    ros-humble-std-msgs \
+    ros-humble-std-srvs \
+    ros-humble-tf2 \
+    ros-humble-tf2-geometry-msgs \
+    ros-humble-tf2-ros \
+    ros-humble-visualization-msgs \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi && rosdep update
+
+RUN set -eux; \
+    GIT_TERMINAL_PROMPT=0 git clone --progress --verbose https://github.com/strasdat/Sophus.git /tmp/Sophus; \
+    cd /tmp/Sophus; \
+    git checkout a621ff; \
+    python3 -c "from pathlib import Path; p = Path('/tmp/Sophus/sophus/so2.cpp'); t = p.read_text(); t = t.replace('  unit_complex_.real() = 1.;\\n', '  unit_complex_.real(1.);\\n'); t = t.replace('  unit_complex_.imag() = 0.;\\n', '  unit_complex_.imag(0.);\\n'); p.write_text(t)"; \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release; \
+    cmake --build build -j"$(nproc)"; \
+    cmake --install build; \
+        ldconfig; \
+        if [ -d /usr/local/include/sophus ]; then \
+            for h in /usr/local/include/sophus/*.h; do \
+                [ -e "$h" ] || continue; \
+                ln -sf "$(basename "$h")" "${h%.h}.hpp"; \
+            done; \
+        fi; \
+        python3 -c "from pathlib import Path; p = Path('/usr/local/lib/cmake/Sophus/SophusConfig.cmake'); p.parent.mkdir(parents=True, exist_ok=True); p.write_text('if(NOT TARGET Sophus::Sophus)\n  add_library(Sophus::Sophus SHARED IMPORTED)\n  set_target_properties(Sophus::Sophus PROPERTIES\n    IMPORTED_LOCATION \"/usr/local/lib/libSophus.so\"\n    INTERFACE_INCLUDE_DIRECTORIES \"/usr/local/include\"\n  )\nendif()\n\nset(Sophus_INCLUDE_DIRS \"/usr/local/include\")\nset(Sophus_LIBRARIES Sophus::Sophus)\nset(Sophus_FOUND TRUE)\n')"; \
+    rm -rf /tmp/Sophus
+
+WORKDIR /workspace
+
+COPY Fast_Livo /workspace/Fast_Livo
+COPY livox_SDK/Livox-SDK2 /workspace/livox_SDK/Livox-SDK2
+COPY run.sh /workspace/run.sh
+COPY docker/entrypoint.sh /usr/local/bin/fast_livo-entrypoint.sh
+COPY docker/cyclonedds.xml /opt/fast_livo/cyclonedds.xml
+
+RUN chmod +x /workspace/run.sh /usr/local/bin/fast_livo-entrypoint.sh
+
+WORKDIR /workspace/livox_SDK/Livox-SDK2
+RUN rm -rf build \
+ && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build build -j"$(nproc)" \
+ && cmake --install build \
+ && ldconfig
+
+WORKDIR /workspace/ws_livox/src
+RUN mkdir -p /workspace/ws_livox/src \
+ && cp -r /workspace/Fast_Livo/src/livox_ros_driver2 /workspace/ws_livox/src/livox_ros_driver2
+
+WORKDIR /workspace/ws_livox/src/livox_ros_driver2
+RUN source /opt/ros/humble/setup.bash \
+ && chmod +x ./build.sh \
+ && ./build.sh humble
+
+WORKDIR /workspace/Fast_Livo
+RUN rm -rf build install log \
+ && source /opt/ros/humble/setup.bash \
+ && source /workspace/ws_livox/install/setup.bash \
+ && colcon build --merge-install --symlink-install --packages-skip livox_ros_driver2 fast_lio vikit_py --continue-on-error || true
+
+WORKDIR /workspace
+
+ENTRYPOINT ["/usr/local/bin/fast_livo-entrypoint.sh"]
+CMD ["/bin/bash"]

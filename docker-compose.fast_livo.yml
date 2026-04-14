@@ -1,0 +1,24 @@
+services:
+  fast_livo:
+    build:
+      context: .
+      dockerfile: Dockerfile.fast_livo
+    image: fast_livo:humble
+    network_mode: host
+    ipc: host
+    privileged: true
+    environment:
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ROS_LOCALHOST_ONLY: "0"
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: file:///opt/fast_livo/cyclonedds.xml
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev/bus/usb:/dev/bus/usb
+      - ./tmp:/workspace/tmp
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: ["/bin/bash", "-lc", "/workspace/run.sh"]

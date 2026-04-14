@@ -1,0 +1,25 @@
+camera_matrix:
+  cols: 3
+  data:
+  - 607.3343505859375
+  - 0.0
+  - 322.9985046386719
+  - 0.0
+  - 607.222900390625
+  - 250.01437377929688
+  - 0.0
+  - 0.0
+  - 1.0
+  rows: 3
+distortion_coefficients:
+  cols: 5
+  data:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  rows: 1
+distortion_model: plumb_bob
+image_height: 480
+image_width: 640

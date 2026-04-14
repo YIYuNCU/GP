@@ -1,0 +1,36 @@
+*
+**/build
+**/install
+**/log
+**/.git
+**/.pytest_cache
+**/__pycache__
+**/*.bag
+**/*.db3
+**/*.db3.zstd
+dataset
+tmp
+livox_SDK/Livox_Viewer_For_Linux_Ubuntu16.04_x64_0.10.0
+livox_SDK/LivoxViewer2 for Ubuntu v2.3.0
+!.dockerignore
+!Dockerfile.fast_livo
+!start_fast_livo_docker.sh
+!start_fast_livo_with_mirror.sh
+!run.sh
+!docker/
+!docker/**
+!Fast_Livo/
+!Fast_Livo/**
+!livox_SDK/
+!livox_SDK/Livox-SDK2/
+!livox_SDK/Livox-SDK2/**
+
+# Re-exclude build artifacts after allowlist rules
+Fast_Livo/build/
+Fast_Livo/install/
+Fast_Livo/log/
+Fast_Livo/build/**
+Fast_Livo/install/**
+Fast_Livo/log/**
+livox_SDK/Livox-SDK2/build/
+livox_SDK/Livox-SDK2/build/**

@@ -1,0 +1,30 @@
+# 创建修复的rviz2包装器
+sudo tee /usr/local/bin/rviz2-fixed > /dev/null << 'EOF'
+#!/bin/bash
+# 修复rviz2: 解决snap core20库冲突
+# 1. 设置Qt使用X11
+export QT_QPA_PLATFORM=xcb
+export QT_DEBUG_PLUGINS=0
+unset QT_QPA_PLATFORM_PLUGIN_PATH
+unset WAYLAND_DISPLAY
+
+# 2. 过滤掉所有snap相关库路径
+CLEAN_LD=""
+if [ -n "$LD_LIBRARY_PATH" ]; then
+    IFS=':' read -ra PATHS <<< "$LD_LIBRARY_PATH"
+    for path in "${PATHS[@]}"; do
+        if [[ ! $path =~ /snap/ ]] && [[ ! $path =~ core20 ]] && [[ ! $path =~ core22 ]]; then
+            CLEAN_LD="${CLEAN_LD}:$path"
+        fi
+    done
+    export LD_LIBRARY_PATH="${CLEAN_LD:1}"
+fi
+
+# 3. 强制使用系统的libpthread
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libpthread.so.0
+
+# 4. 运行rviz2
+exec /opt/ros/humble/lib/rviz2/rviz2 "$@"
+EOF
+
+sudo chmod +x /usr/local/bin/rviz2-fixed
